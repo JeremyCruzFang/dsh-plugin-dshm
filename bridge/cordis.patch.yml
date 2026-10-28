@@ -1,0 +1,7 @@
+- insert:
+    - id: dshm-bridge
+      name: dsh-plugin-dshm
+      disabled: !!js "ctx.get('profileContext')?.name === 'dshm'"
+    - id: dshm-cli
+      name: dsh-plugin-dshm/cli
+      disabled: !!js "ctx.get('profileContext')?.name !== 'dshm'"

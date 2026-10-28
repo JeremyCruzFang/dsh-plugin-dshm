@@ -1,0 +1,4 @@
+# The locked platform package provides esbuild's executable. No install hook
+# is needed; make the decision explicit for pnpm 11's strict build policy.
+allowBuilds:
+  esbuild: false
