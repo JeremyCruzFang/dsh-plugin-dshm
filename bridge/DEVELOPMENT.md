@@ -9,7 +9,7 @@ Only capabilities verified against the supported native carrier are advertised.
 ## Build and checks
 
 Requirements: Node 24, pnpm 11, and `openssl` on PATH for initial certificate
-creation. The tested native carrier is DeepSeek Harness 0.2.1-rc.3 on macOS.
+creation. The tested native carriers are DeepSeek Harness 0.2.1-rc.3 and 0.2.1-rc.5 on macOS. Candidate-runtime and exact-tarball commands are in `tools/bridge-integration/README.md` (task 033).
 
 ```sh
 pnpm -C protocol install --frozen-lockfile

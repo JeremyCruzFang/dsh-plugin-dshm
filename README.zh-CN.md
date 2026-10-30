@@ -7,8 +7,10 @@
 
 ## 环境与兼容性
 
-- DeepSeek Harness **0.2.1-rc.3**，这是当前 `engines.dsh` 声明的精确版本。
-  DSH 仍处于 Developer Preview 阶段，不能假定新版本自动兼容。
+- DeepSeek Harness **0.2.1-rc.3 或 0.2.1-rc.5**。插件 0.1.1 新增对
+  **0.2.1-rc.5** 的支持，这是 2026-10-30 验证的 npm `latest` 版本。
+  仅支持这些已测试的精确版本；其他版本（包括独立的 0.2.2 alpha 通道）
+  不会自动视为兼容。
 - 电脑正在运行 DSH 桌面应用或 `dsh web`，手机或平板已安装兼容的 DSHM
   构建版本。这个 npm 包不会安装 iOS 应用。
 - DSH 运行环境使用 Node 24 或更新版本，且 PATH 中有 `openssl`，供首次
@@ -16,8 +18,9 @@
 - 两台设备之间能够直接通信，或已连接到你自己的 Tailscale 等 VPN。
 
 目前已在 macOS 上使用 DSH 0.2.1-rc.3 验证桌面应用及隔离的 `dsh web`。
-Windows 是计划支持的平台，但原生运行和防火墙验证清单尚未完成；macOS
-通过的测试不能代替 Windows 验证。真实手机的网络测试也与本地测试客户端、
+插件 0.1.1 还在真实 DSH 0.2.1-rc.5 的隔离 `dsh web` 中通过了审批、重连、
+文件传输、路径限制及重启测试。新的 0.1.1 / rc.5 组合仍需 Windows 原生验证；
+macOS 通过的测试不能代替 Windows 验证。真实手机的网络测试也与本地测试客户端、
 Simulator 的结果分别记录。v1 不包含中国大陆市场，也不声明已验证大陆网络可达性。
 
 ## 在 DSH 中安装
@@ -158,8 +161,9 @@ APNs 已经接收的通知无法撤回。终端输出仍仅供查看；桥接插
 
 ## 新 DSH 版本发布检查清单（维护者）
 
-1. 测试期间保持当前已验证的 `engines.dsh` 值不变，先阅读上游改动，尤其是
-   projection 接口和插件加载器的变化。
+1. 先阅读上游改动，尤其是 projection 接口和插件加载器。在尚未发布的候选包中，
+   同步更新显式运行时允许列表及 `engines.dsh`，以便通过 DSH 安装并进行隔离
+   验证。以下测试通过前，不发布该包，也不对外声明支持新版本。
 2. 通过 DSH 的正常发布渠道安装候选运行时，在隔离的 `.dsh-test` home 中对
    **该候选版本**运行 `pnpm -C bridge test:integration`。兼容性改动必须同时
    审查 `bridge/src/projection/native.ts` 中的显式运行时版本保护；只改包元数据
@@ -168,7 +172,7 @@ APNs 已经接收的通知无法撤回。终端输出仍仅供查看；桥接插
    记录实际版本和结果；声明新的 Windows 组合已支持前，完成 Windows 清单。
 3. 运行 `pnpm -C bridge test`、`pnpm -C protocol validate` 和
    `pnpm -C protocol gen:check`。在正确的架构边界内修复兼容性问题并审查结果。
-4. **只有真实 DSH 集成测试通过后**，才把 `engines.dsh` 扩大到明确验证过的
+4. **只有真实 DSH 集成测试通过后**，才最终确定 `engines.dsh` 中明确验证过的
    版本或范围。不要假定未来整个小版本都兼容。根据实际验证记录，更新
    `tools/release-plugin/check-release.mjs` 中的已测试范围，并与运行时版本保护
    保持一致。从 `bridge/package.json`

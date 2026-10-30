@@ -157,8 +157,19 @@ test('global interactions.list returns healthy approvals while waiting for orpha
   oneExpired(await host.snapshot('orphan-session-b'))
 })
 
-test('a watch stays readable while an unidentifiable delivery expires and redelivery warns only once', { timeout: 6500 }, async t => {
-  const host = await carrier(t, [turn], { watch: false, running: false })
+for (const running of [false, true]) test(`a watch stays readable while an unidentifiable delivery expires and redelivery warns only once (native running: ${running})`, { timeout: 6500 }, async t => {
+  // The watch and correlation deadlines can settle in either order. Hold the
+  // first correlation callback so the watch must publish its fallback itself.
+  const schedule = globalThis.setTimeout
+  let heldCorrelation = false
+  t.mock.method(globalThis, 'setTimeout', (callback, delay, ...args) => {
+    if (!heldCorrelation && delay >= 1900 && delay <= 2000) {
+      heldCorrelation = true
+      return schedule(callback, delay + 50, ...args)
+    }
+    return schedule(callback, delay, ...args)
+  })
+  const host = await carrier(t, [turn], { watch: false, running })
   const request = { toolName: 'bash', reason: 'No matching durable audit' }
   const delivery = host.push('$events', waterfall('delivery-unidentifiable', request))
   await delivery.started; await tick()
@@ -167,7 +178,8 @@ test('a watch stays readable while an unidentifiable delivery expires and redeli
   assert.ok(performance.now() - started < 2500, 'a correlating waterfall must not block session.watch indefinitely')
   await delivery.done
   assert.deepEqual(snapshot.interactions, [])
-  assert.equal(snapshot.session.summary.status, 'idle')
+  assert.equal(snapshot.session.summary.status, running ? 'running' : 'idle')
+  assert.equal(heldCorrelation, true)
   assert.equal(snapshot.session.summary.pendingInteractions, 0)
   const notices = snapshot.items.filter(item => item.kind === 'notice' && item.level === 'warning')
   assert.equal(notices.length, 1)

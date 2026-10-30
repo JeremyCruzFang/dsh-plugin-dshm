@@ -8,9 +8,10 @@ your paired device over your local network or your own VPN.
 
 ## Requirements and compatibility
 
-- DeepSeek Harness **0.2.1-rc.3**, the exact currently supported `engines.dsh`
-  value. DSH is a Developer Preview; a newer version is not automatically
-  compatible.
+- DeepSeek Harness **0.2.1-rc.3 or 0.2.1-rc.5**. Plugin 0.1.1 adds support for
+  **0.2.1-rc.5**, the npm `latest` release verified on 2026-10-30. These are
+  exact tested versions; other releases, including the separate 0.2.2 alpha
+  channel, are not automatically compatible.
 - A running DSH desktop app or `dsh web` on your computer, and a compatible DSHM
   iPhone/iPad build. This npm package does not install the iOS app.
 - Node 24 or later in the DSH runtime, and `openssl` on its PATH for the initial
@@ -19,9 +20,10 @@ your paired device over your local network or your own VPN.
   connected VPN such as Tailscale.
 
 The bridge has been exercised with DSH 0.2.1-rc.3 on macOS, including the desktop
-app and isolated `dsh web`. Windows is an intended platform, but its native
-runtime/firewall checklist is still pending; do not treat the macOS tests as
-Windows verification. Physical-phone network acceptance is also separate from
+app and isolated `dsh web`. Plugin 0.1.1 is also tested against real DSH
+0.2.1-rc.5 in isolated `dsh web`, including approvals, reconnects, file transfers,
+path restrictions and restart. The new 0.1.1 / rc.5 combination still needs a
+Windows native check; macOS results do not substitute for Windows verification. Physical-phone network acceptance is also separate from
 the local test-client and Simulator results. Mainland China is outside the v1
 release scope; mainland network reachability is not claimed.
 
@@ -190,8 +192,10 @@ credentials/session directories. Uninstall does not remove your DSH sessions.
 
 ## New DSH release checklist (maintainers)
 
-1. Keep `engines.dsh` at the currently verified version while testing. Review
-   upstream DSH changes, especially the projection APIs and bundle loader.
+1. Review upstream DSH changes, especially the projection APIs and bundle
+   loader. In an unpublished candidate, update the explicit runtime allowlist
+   and `engines.dsh` together so DSH can install it for isolated verification.
+   Do not publish or claim support before the following tests pass.
 2. Install the candidate DSH runtime through its normal distribution and run
    `pnpm -C bridge test:integration` against it in the isolated `.dsh-test` home.
    Review the explicit runtime version guard in `bridge/src/projection/native.ts`
@@ -203,7 +207,7 @@ credentials/session directories. Uninstall does not remove your DSH sessions.
 3. Run `pnpm -C bridge test`, `pnpm -C protocol validate` and
    `pnpm -C protocol gen:check`. Fix compatibility changes only inside the
    appropriate boundary and review the results.
-4. **Only after the real-DSH suite passes**, widen `engines.dsh` to the explicit
+4. **Only after the real-DSH suite passes**, finalize `engines.dsh` as the explicit
    tested versions/range. Never assume an entire future minor release is safe.
    Update the tested range in `tools/release-plugin/check-release.mjs` with the
    recorded evidence, keeping it aligned with the runtime compatibility guard.

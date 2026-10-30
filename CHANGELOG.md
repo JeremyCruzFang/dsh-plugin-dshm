@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.1 — Unreleased
+
+- Support DSH 0.2.1-rc.5 (npm latest verified 2026-10-30), retaining exact
+  support for 0.2.1-rc.3. Other prereleases and future versions remain blocked.
+- Include the previously verified task-032 interaction-status correction:
+  concurrent read/correlation timeouts publish the native running/idle fallback
+  and its warning before returning a session snapshot.
+- Native macOS integration covers approvals/questions, reconnects, transfers,
+  path policy and restart. Windows verification of this new combination is
+  pending; no new Windows compatibility result is claimed.
+
 ## 0.1.0 — 2026-10-28
 
 Initial DSHM bridge release for DeepSeek Harness 0.2.1-rc.3.

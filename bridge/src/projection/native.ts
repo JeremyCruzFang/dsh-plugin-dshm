@@ -6,6 +6,7 @@ import { homedir } from 'node:os'
 import type { ContentMethod, DmpEvent, DmpObject, ProjectionHost, ProjectionPeer, ProjectionWatch, WatchMethod } from '../types.js'
 import { createProjectionFold, type Fold, type FoldState, type NativeRecord } from './fold-recording.mjs'
 import { FileProjection } from './files.js'
+import { supportsDSH } from './compatibility.mjs'
 import { interactionIdentity, expectedInteractionIds } from './interactions.js'
 
 // This file is the carrier boundary. No native namespace or service type escapes.
@@ -69,7 +70,7 @@ interface SessionState {
   followReady: boolean
   cancel: AbortController
   changed: Set<() => void>
-  identifying: Set<string>
+  identifying: Map<string, 'approval' | 'question'>
   expiredInteractions: Set<string>
 }
 interface Delivery { id: string; nativeId: string; sessionId: string; value: DmpObject; answered: boolean }
@@ -95,7 +96,7 @@ export function createProjectionHost(context: unknown): ProjectionHost & { diagn
       if (version !== 'unknown') break
     } catch { /* The bundle may not run under a DSH CLI carrier. */ }
   }
-  const status = version === '0.2.1-rc.3' ? 'ok' : 'incompatible'
+  const status = supportsDSH(version) ? 'ok' : 'incompatible'
   const diagnostics: Diagnostics = { createdPeers: 0, disposedPeers: 0, activePeers: 0 }
   const peers = new Set<LivePeer>()
   const attachments = new Map<string, Attachment>()
@@ -210,14 +211,15 @@ export class LivePeer implements ProjectionPeer {
       const state = await this.ensure(sessionId)
       const request = object(frame.request)
       const nativeId = string(frame.eventId)
-      state.identifying.add(nativeId)
+      const kind = frame.event === 'approval/request' ? 'approval' : 'question'
+      state.identifying.set(nativeId, kind)
       let identity
       try { identity = await this.waitForProjection(state, () => interactionIdentity(sessionId, string(frame.event), request, state.records)) }
       catch (error) { if (state.cancel.signal.aborted) return; throw error }
       finally { state.identifying.delete(nativeId) }
       if (!identity) {
         this.expireMissingInteractions(state)
-        this.accept(state, { source: 'interaction-warning', frame: { kind: frame.event === 'approval/request' ? 'approval' : 'question', status: this.summary(this.nativeSummaries.get(sessionId) ?? { sessionId }).status }, atMs: 0 })
+        this.warnUnidentifiedInteraction(state, kind)
         return
       }
       const { id, callId } = identity
@@ -303,12 +305,22 @@ export class LivePeer implements ProjectionPeer {
     for (const id of ids) state.expiredInteractions.add(id)
     if (ids.length) this.accept(state, { source: 'interaction-expire', frame: { ids, status: this.summary(this.nativeSummaries.get(state.id) ?? { sessionId: state.id }).status }, atMs: 0 })
   }
+  private warnUnidentifiedInteraction(state: SessionState, kind: 'approval' | 'question'): void {
+    this.accept(state, { source: 'interaction-warning', frame: { kind, status: this.summary(this.nativeSummaries.get(state.id) ?? { sessionId: state.id }).status }, atMs: 0 })
+  }
   private async interactionsReady(state: SessionState, signal?: AbortSignal, deadline = Date.now() + 2000): Promise<void> {
     const ready = await this.waitForProjection(state, () => state.followReady && !state.identifying.size &&
       expectedInteractionIds(state.id, state.records).every(id => this.deliveries.has(id) || state.expiredInteractions.has(id)) ? true : undefined, signal, deadline)
     // A durable audit can outlive its native waterfall after a crash. Keep the
     // session readable, but never present an unanswerable row as live.
-    if (!ready) this.expireMissingInteractions(state)
+    if (!ready) {
+      this.expireMissingInteractions(state)
+      // The read deadline can settle before the correlation callback. Publish
+      // the fallback now so its snapshot cannot retain stale running state or
+      // omit the warning. The later callback may still identify a valid delivery.
+      const kind = state.identifying.values().next().value
+      if (kind) this.warnUnidentifiedInteraction(state, kind)
+    }
   }
   private async loadChanges(state: SessionState, seq: number): Promise<DmpObject> {
     const url = new URL('http://localhost/api/changes.summary')
@@ -343,7 +355,7 @@ export class LivePeer implements ProjectionPeer {
     const native = this.nativeSummaries.get(id)
     if (!native) throw fault('not-found')
     const metadata: DmpObject = { live: true, scenario: 'live', sessionId: id, title: null, recordedAt: iso(native.updatedAt), summary: this.summary(native), cwd: native.cwd }
-    const state: SessionState = { id, metadata, fold: createProjectionFold(metadata), records: [], nativeSeq: -1, listeners: new Set(), ready: Promise.resolve(), followReady: false, cancel: new AbortController(), changed: new Set(), identifying: new Set(), expiredInteractions: new Set() }
+    const state: SessionState = { id, metadata, fold: createProjectionFold(metadata), records: [], nativeSeq: -1, listeners: new Set(), ready: Promise.resolve(), followReady: false, cancel: new AbortController(), changed: new Set(), identifying: new Map(), expiredInteractions: new Set() }
     this.lifetime.signal.addEventListener('abort', () => state.cancel.abort(), { once: true })
     this.sessions.set(id, state)
     state.ready = this.startStream('session/follow', { request: { address: { kind: 'session', sessionId: id }, assistantStream: true, maxMessages: 200 } }, async frame => {
