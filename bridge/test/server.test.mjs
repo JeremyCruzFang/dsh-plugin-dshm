@@ -3,6 +3,8 @@ import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import https from 'node:https'
+import net from 'node:net'
+import { once } from 'node:events'
 import tls from 'node:tls'
 import os from 'node:os'
 import path from 'node:path'
@@ -33,6 +35,26 @@ test('wildcard and public bind requests fail before creating identity state', as
     assert.deepEqual(fs.readdirSync(dir), [])
   }
 })
+test('an occupied port rejects startup, releases earlier listeners and allows retry', async t => {
+  const blocker = net.createServer()
+  t.after(() => { if (blocker.listening) return new Promise(resolve => blocker.close(resolve)) })
+  blocker.listen({ host: '::1', port: 0, ipv6Only: true })
+  await once(blocker, 'listening')
+
+  // IPv4 binds first. The IPv6 conflict must also roll back the IPv4 listener.
+  const options = {
+    stateDir: directory(t), port: blocker.address().port, addresses: ['127.0.0.1', '::1'],
+    version: 'test', dshVersion: 'test', dshStatus: 'ok', caps: [], quiet: true,
+    async connect() { throw new Error('unexpected client') },
+  }
+  await assert.rejects(startServer(options), { code: 'EADDRINUSE' })
+  await new Promise(resolve => blocker.close(resolve))
+  const bridge = await startServer(options)
+  t.after(() => bridge.close())
+  assert.equal(bridge.port, options.port)
+  assert.deepEqual(bridge.addresses, options.addresses)
+})
+
 test('TLS identity persists; registry retains revoked records and private file modes', t => {
   const dir = directory(t), first = new HostState(dir), second = new HostState(dir)
   assert.equal(first.hostId, second.hostId); assert.equal(first.fingerprint, second.fingerprint)

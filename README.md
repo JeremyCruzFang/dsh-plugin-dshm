@@ -125,6 +125,10 @@ port by router port forwarding or change DSH's Web server to a public bind.
 Bonjour discovery uses the local network. If discovery sees your computer but
 connection fails, check permissions, VPN/proxy bypass and client isolation first.
 
+If enabling DSHM reports `EADDRINUSE`, another listener already owns the
+address and port. Check for a second DSH instance running the bridge. Once
+the port is free, enable DSHM again.
+
 ## What is sent, and where
 
 The bridge sends session messages, tool results, approvals, selected files and

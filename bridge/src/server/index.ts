@@ -257,11 +257,13 @@ export async function startServer(options: BridgeServerOptions) {
   }
   const addListener = async (address: string): Promise<void> => {
     const server = https.createServer({ key: state.key, cert: state.cert }, (_req, res) => { res.writeHead(426); res.end() })
-    const wss = new WebSocketServer({ server, maxPayload: limits.maxTextFrameBytes, perMessageDeflate: { threshold: 1024, serverNoContextTakeover: true, clientNoContextTakeover: true } })
-    wss.on('connection', (ws, req) => onConnection(ws, address, req.socket.remoteAddress))
     await new Promise<void>((resolve, reject) => { server.once('error', reject); server.listen({ host: address, port, ipv6Only: true }, () => { server.removeListener('error', reject); resolve() }) })
     const bound = server.address()
     if (!bound || typeof bound === 'string') throw new Error('No TCP address')
+    // ws forwards HTTPS errors to its own EventEmitter. Attach it only after
+    // bind succeeds so startup errors reach DSH through the rejected promise.
+    const wss = new WebSocketServer({ server, maxPayload: limits.maxTextFrameBytes, perMessageDeflate: { threshold: 1024, serverNoContextTakeover: true, clientNoContextTakeover: true } })
+    wss.on('connection', (ws, req) => onConnection(ws, address, req.socket.remoteAddress))
     port = bound.port; listeners.set(address, { server, wss })
   }
   const removeListener = async (address: string): Promise<void> => {

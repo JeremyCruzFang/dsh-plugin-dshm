@@ -1,6 +1,12 @@
 # Changelog
 
-## 0.1.1 — Unreleased
+## 0.1.2
+
+- If another process owns the configured TCP port, DSH receives the original
+  bind error and the bridge releases any listeners it already opened. Free
+  the port and enable the bridge again to retry on the same port.
+
+## 0.1.1 — 2026-10-30
 
 - Support DSH 0.2.1-rc.5 (npm latest verified 2026-10-30), retaining exact
   support for 0.2.1-rc.3. Other prereleases and future versions remain blocked.
