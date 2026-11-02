@@ -1,6 +1,8 @@
 import crypto from 'node:crypto'
 import https from 'node:https'
 import os from 'node:os'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { WebSocket, WebSocketServer, type RawData } from 'ws'
 import { frameValidators, methodValidators, eventValidators, schemas } from 'dshm-protocol/contract'
 import type { BridgeServerOptions, ConnectionMethods, DmpObject, ServerIdentity } from '../types.js'
@@ -9,7 +11,7 @@ import { Uploads } from './uploads.js'
 import { RequestRateLimit } from './rate-limit.js'
 import { DmpError } from '../errors.js'
 import type { Device } from 'dshm-protocol/types'
-import { HostState } from '../pairing/state.js'
+import { HostState, writePrivate } from '../pairing/state.js'
 import { PairingWindow } from '../pairing/window.js'
 import { endpoint, isPrivateAddress, isTailscale, privateInterfaces } from '../discovery/interfaces.js'
 
@@ -24,9 +26,9 @@ interface Listener { server: https.Server; wss: WebSocketServer }
 interface LiveClient { ws: WebSocket; address: string; via: 'lan' | 'tailscale' | 'other'; deviceId?: string; refuse(code: string, closeCode: number): void; cleanup(): Promise<void> }
 
 export async function startServer(options: BridgeServerOptions) {
-  if (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535) throw new Error('Invalid DSHM listener port')
+  if (options.port !== undefined && (!Number.isInteger(options.port) || options.port < 0 || options.port > 65535)) throw new Error('Invalid DSHM listener port')
   if (options.addresses?.some(address => !isPrivateAddress(address, true))) throw new Error('Listener requires explicit private or loopback IP addresses')
-  const state = new HostState(options.stateDir)
+  const state = await HostState.open(options.stateDir)
   const pairing = new PairingWindow(options.stateDir, options.quiet ?? false)
   // A crashed process must not leave a usable-looking pairing URL behind.
   pairing.close()
@@ -37,7 +39,16 @@ export async function startServer(options: BridgeServerOptions) {
   const deviceObservers = new Set<() => void>()
   const notifyDevices = (): void => { for (const changed of deviceObservers) changed() }
   const listeners = new Map<string, Listener>(), clients = new Set<LiveClient>(), active = new Map<string, LiveClient>()
-  let port = options.port, closed = false, refreshing: Promise<void> | undefined
+  const portFile = join(options.stateDir, 'listener-port')
+  const defaultPort = 47390
+  let port = options.port ?? defaultPort
+  if (options.port === undefined) {
+    try {
+      const previous = Number(readFileSync(portFile, 'utf8'))
+      if (Number.isInteger(previous) && previous >= 1024 && previous <= 65535) port = previous
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error }
+  }
+  let closed = false, refreshing: Promise<void> | undefined
   const desiredAddresses = (): string[] => [...new Set(options.addresses ?? privateInterfaces(options.bindMode))].sort()
   const currentEndpoints = (): string[] => [...listeners.keys()].map(address => endpoint(address, port))
   const openPairing = (): string => {
@@ -276,13 +287,40 @@ export async function startServer(options: BridgeServerOptions) {
     await new Promise<void>(resolve => listener.wss.close(() => resolve()))
     await new Promise<void>(resolve => listener.server.close(() => resolve()))
   }
+  const bindAddress = async (address: string): Promise<void> => {
+    try { await addListener(address) } catch (error) {
+      // A VPN or Wi-Fi adapter can disappear after networkInterfaces() returns.
+      // The next refresh retries it. Explicit address lists remain strict.
+      const code = (error as NodeJS.ErrnoException).code
+      if (options.addresses || (code !== 'EADDRNOTAVAIL' && code !== 'ENODEV')) throw error
+    }
+  }
+  // Claim the same port on every private interface. Holding the sockets avoids
+  // a probe/close/listen race. Never move an already serving interface.
+  const bindInitial = async (addresses: string[]): Promise<void> => {
+    const candidates = options.port === undefined ? [port, ...(port === defaultPort ? [] : [defaultPort]), 0, 0, 0] : [port]
+    for (const [index, candidate] of candidates.entries()) {
+      port = candidate
+      try {
+        for (const address of addresses) await bindAddress(address)
+      } catch (error) {
+        for (const address of listeners.keys()) await removeListener(address)
+        const code = (error as NodeJS.ErrnoException).code
+        if ((code !== 'EADDRINUSE' && code !== 'EACCES') || index === candidates.length - 1) throw error
+        continue
+      }
+      if (listeners.size && options.port === undefined) writePrivate(portFile, String(port))
+      return
+    }
+  }
   const refreshInterfaces = async (): Promise<void> => {
     if (closed) return
     if (refreshing) return refreshing
     refreshing = (async () => {
       const desired = desiredAddresses()
       for (const address of listeners.keys()) if (!desired.includes(address)) await removeListener(address)
-      for (const address of desired) if (!listeners.has(address)) await addListener(address)
+      if (desired.length && !listeners.size) await bindInitial(desired)
+      else for (const address of desired) if (!listeners.has(address)) await bindAddress(address)
       await options.onAddresses?.([...listeners.keys()], port)
     })().finally(() => { refreshing = undefined })
     return refreshing

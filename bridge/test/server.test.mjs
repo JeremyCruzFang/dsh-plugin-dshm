@@ -55,24 +55,123 @@ test('an occupied port rejects startup, releases earlier listeners and allows re
   assert.deepEqual(bridge.addresses, options.addresses)
 })
 
-test('TLS identity persists; registry retains revoked records and private file modes', t => {
-  const dir = directory(t), first = new HostState(dir), second = new HostState(dir)
+test('automatic port selection rolls back a partial bind, advertises the usable port and retains it on restart', async t => {
+  // Seed a previously selected port on a real socket. IPv4 can bind first,
+  // but IPv6 is occupied and must never be included in an unusable QR.
+  const blocker = net.createServer()
+  blocker.listen({ host: '::1', port: 0, ipv6Only: true })
+  await once(blocker, 'listening')
+  t.after(() => { if (blocker.listening) return new Promise(resolve => blocker.close(resolve)) })
+  const stateDir = directory(t), previous = blocker.address().port
+  fs.writeFileSync(path.join(stateDir, 'listener-port'), String(previous))
+  const addresses = ['127.0.0.1', '::1']
+  const advertised = []
+  const options = { stateDir, addresses, quiet: true, version: 'test', dshVersion: 'test', dshStatus: 'ok', caps: [],
+    onAddresses: (addresses, port) => advertised.push({ addresses, port }),
+    async connect() { throw new Error('unexpected authentication') } }
+  const bridge = await startServer(options)
+  const selected = bridge.port
+  try {
+    assert.notEqual(selected, previous)
+    assert.deepEqual(advertised.at(-1), { addresses, port: selected })
+    assert.equal(new URL(bridge.openPairing()).searchParams.get('addrs'), `127.0.0.1:${selected},[::1]:${selected}`)
+    for (const host of addresses) {
+      const status = await new Promise((resolve, reject) => https.get({ host, port: selected, rejectUnauthorized: false }, res => {
+        res.resume(); resolve(res.statusCode)
+      }).on('error', reject))
+      assert.equal(status, 426)
+    }
+    const probe = net.createServer()
+    probe.listen(previous, '127.0.0.1')
+    await once(probe, 'listening')
+    await new Promise(resolve => probe.close(resolve))
+  } finally { await bridge.close() }
+  await new Promise(resolve => blocker.close(resolve))
+  const restarted = await startServer(options)
+  try {
+    assert.equal(restarted.port, selected)
+    assert.equal(restarted.fingerprint, bridge.fingerprint)
+  } finally { await restarted.close() }
+})
+
+test('a reserved default port falls back to the OS, while an explicitly configured 47390 remains strict', async t => {
+  const listen = net.Server.prototype.listen
+  const attempted = []
+  t.mock.method(net.Server.prototype, 'listen', function (options, ...rest) {
+    attempted.push(options.port)
+    if (options.port !== 47390) return listen.call(this, options, ...rest)
+    queueMicrotask(() => this.emit('error', Object.assign(new Error('Reserved port'), { code: 'EACCES' })))
+    return this
+  })
+  const options = { stateDir: directory(t), addresses: ['127.0.0.1'], quiet: true, version: 'test',
+    dshVersion: 'test', dshStatus: 'ok', caps: [], async connect() { throw new Error('unexpected client') } }
+  const bridge = await startServer(options)
+  try {
+    assert.deepEqual(attempted, [47390, 0])
+    assert.ok(bridge.port > 0 && bridge.port !== 47390)
+  } finally { await bridge.close() }
+  attempted.length = 0
+  await assert.rejects(startServer({ ...options, port: 47390 }), { code: 'EACCES' })
+  assert.deepEqual(attempted, [47390])
+})
+
+test('an auto-discovered adapter disappearing during startup leaves the bridge available for the next refresh', async t => {
+  t.mock.method(os, 'networkInterfaces', () => ({ wifi: [{ address: '10.0.0.5', internal: false }] }))
+  const listen = net.Server.prototype.listen
+  let gone = true
+  t.mock.method(net.Server.prototype, 'listen', function (options, ...rest) {
+    if (gone) {
+      queueMicrotask(() => this.emit('error', Object.assign(new Error('Adapter removed'), { code: 'EADDRNOTAVAIL' })))
+      return this
+    }
+    return listen.call(this, { ...options, host: '127.0.0.1' }, ...rest)
+  })
+  const options = { stateDir: directory(t), port: 0, quiet: true, version: 'test', dshVersion: 'test',
+    dshStatus: 'ok', caps: [], async connect() { throw new Error('unexpected client') } }
+  await assert.rejects(startServer({ ...options, addresses: ['10.0.0.5'] }), { code: 'EADDRNOTAVAIL' })
+  const bridge = await startServer(options)
+  try {
+    assert.deepEqual(bridge.addresses, [])
+    assert.throws(() => bridge.openPairing(), /No private interface/)
+    gone = false
+    await bridge.refreshInterfaces()
+    assert.deepEqual(bridge.addresses, ['10.0.0.5'])
+    assert.ok(bridge.port > 0)
+  } finally { await bridge.close() }
+})
+
+test('overlapping first-start identity generation converges on one pin and incomplete legacy identities fail closed', async t => {
+  const dir = directory(t)
+  const [first, second] = await Promise.all([HostState.open(dir), HostState.open(dir)])
+  assert.equal(first.fingerprint, second.fingerprint)
+  assert.equal(first.hostId, second.hostId)
+  fs.unlinkSync(path.join(dir, 'cert.pem'))
+  await assert.rejects(HostState.open(dir), /Incomplete DSHM TLS identity/)
+  assert.equal(fs.existsSync(path.join(dir, 'cert.pem')), false)
+})
+
+test('TLS identity persists; registry retains revoked records and private file modes', async t => {
+  const dir = directory(t), first = await HostState.open(dir), second = await HostState.open(dir)
   assert.equal(first.hostId, second.hostId); assert.equal(first.fingerprint, second.fingerprint)
   const keys = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
   const id = first.pair({ name: 'Fake phone', model: 'Test', publicKey: keys.publicKey.export({ format:'der',type:'spki' }).toString('base64'), secureEnclave:false })
   assert.equal(first.revoke(id), true); second.reload(); assert.ok(second.devices[id].revokedAt)
   for (const file of ['key.pem','cert.pem','host-id','devices.json']) assert.equal(fs.statSync(path.join(dir, file)).mode & 0o777, 0o600)
 })
-test('named-curve identity works with the isolated macOS LibreSSL PATH', t => {
-  if (process.platform !== 'darwin') return t.skip('macOS LibreSSL compatibility')
+test('fresh install without external executables creates a valid self-signed server identity', async t => {
   const dir = directory(t), originalPath = process.env.PATH
   try {
-    process.env.PATH = '/usr/bin:/bin:/usr/sbin:/sbin'
-    const identity = new HostState(dir)
+    process.env.PATH = dir
+    const identity = await HostState.open(dir)
     assert.doesNotThrow(() => tls.createSecureContext({ key: identity.key, cert: identity.cert }))
     const key = crypto.createPrivateKey(identity.key)
     assert.equal(key.asymmetricKeyDetails.namedCurve, 'prime256v1')
-    assert.equal(new crypto.X509Certificate(identity.cert).publicKey.asymmetricKeyDetails.namedCurve, 'prime256v1')
+    const certificate = new crypto.X509Certificate(identity.cert)
+    assert.equal(certificate.publicKey.asymmetricKeyDetails.namedCurve, 'prime256v1')
+    assert.equal(certificate.verify(certificate.publicKey), true)
+    assert.equal(certificate.checkPrivateKey(key), true)
+    assert.equal(certificate.subject, 'CN=DSHM Bridge')
+    assert.ok(certificate.validFromDate <= new Date() && certificate.validToDate > new Date())
   } finally {
     if (originalPath === undefined) delete process.env.PATH
     else process.env.PATH = originalPath

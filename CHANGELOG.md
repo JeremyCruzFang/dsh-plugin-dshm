@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.3
+
+- Update the WebSocket server to ws 8.22.1 to address the memory disclosure and fragmented-message denial-of-service advisories in 8.18.3.
+
+- Fresh installations generate the pinned TLS certificate inside Node, including
+  when OpenSSL is absent from PATH. Upgrades reuse the host identity and paired devices.
+
+- On automatic setup, an occupied or reserved TCP 47390 now triggers selection
+  of a free port across private interfaces. The bridge saves the port for
+  reconnects and uses it in pairing codes, Bonjour and host status. An explicit
+  port still fails if unavailable. If a detected network adapter disappears
+  during setup, the bridge retries it on the next interface refresh.
+
 ## 0.1.2
 
 - If another process owns the configured TCP port, DSH receives the original

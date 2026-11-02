@@ -14,8 +14,7 @@ your paired device over your local network or your own VPN.
   channel, are not automatically compatible.
 - A running DSH desktop app or `dsh web` on your computer, and a compatible DSHM
   iPhone/iPad build. This npm package does not install the iOS app.
-- Node 24 or later in the DSH runtime, and `openssl` on its PATH for the initial
-  local TLS certificate.
+- Node 24 or later in the DSH runtime. The bridge creates its first TLS certificate locally.
 - Both devices on a network that permits direct communication, or on your own
   connected VPN such as Tailscale.
 
@@ -125,9 +124,11 @@ port by router port forwarding or change DSH's Web server to a public bind.
 Bonjour discovery uses the local network. If discovery sees your computer but
 connection fails, check permissions, VPN/proxy bypass and client isolation first.
 
-If enabling DSHM reports `EADDRINUSE`, another listener already owns the
-address and port. Check for a second DSH instance running the bridge. Once
-the port is free, enable DSHM again.
+On first start, if TCP 47390 is occupied or reserved, the bridge chooses a
+free port and remembers it for reconnects. New pairing codes and Bonjour
+use the listening port. Run `dsh dshm status` to see it. If an existing
+phone cannot reconnect after a port change, scan a fresh code. An explicit
+`port` setting stays fixed and must be available on the selected interfaces.
 
 ## What is sent, and where
 

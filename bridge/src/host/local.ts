@@ -15,7 +15,7 @@ function equal(left: string, right: string): boolean {
   const a = Buffer.from(left), b = Buffer.from(right)
   return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
-export async function startLocalControl(directory: string, controls: HostControls): Promise<{ close(): Promise<void> }> {
+export function assertLocalControlAvailable(directory: string): void {
   const file = path.join(directory, 'control.json')
   if (fs.existsSync(file)) {
     const old = record(directory)
@@ -23,6 +23,10 @@ export async function startLocalControl(directory: string, controls: HostControl
     try { process.kill(old.pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') live = false }
     if (live) throw new Error('A bridge already owns this home; use its existing host controls')
   }
+}
+export async function startLocalControl(directory: string, controls: HostControls): Promise<{ close(): Promise<void> }> {
+  assertLocalControlAvailable(directory)
+  const file = path.join(directory, 'control.json')
   const token = crypto.randomBytes(32).toString('hex')
   const suffix = crypto.randomBytes(6).toString('hex')
   const socket = process.platform === 'win32' ? `\\\\.\\pipe\\dshm-${suffix}` : path.join(directory, `control-${suffix}.sock`)

@@ -1,6 +1,6 @@
 import QRCode from 'qrcode'
 import { createAdvertiser } from './discovery/advertiser.js'
-import { startLocalControl } from './host/local.js'
+import { assertLocalControlAvailable, startLocalControl } from './host/local.js'
 import type { HostControls } from './host/types.js'
 import { createTailscaleControls, createRemoteControls } from './host/tailscale.js'
 import { installHostRoutes } from './projection/host.js'
@@ -22,6 +22,8 @@ export function getRunningBridge(stateDir: string) { return running.get(stateDir
 
 export async function apply(context: unknown, input?: unknown): Promise<void> {
   const config = parseConfig(input)
+  // Another active profile owns the pairing window and saved port in this home.
+  assertLocalControlAvailable(config.stateDir)
   const projection = await createProjectionHost(context)
   const ledger = new CreationLedger()
   let server: Awaited<ReturnType<typeof startServer>>

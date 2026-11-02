@@ -8,8 +8,7 @@ Only capabilities verified against the supported native carrier are advertised.
 
 ## Build and checks
 
-Requirements: Node 24, pnpm 11, and `openssl` on PATH for initial certificate
-creation. The tested native carriers are DeepSeek Harness 0.2.1-rc.3 and 0.2.1-rc.5 on macOS. Candidate-runtime and exact-tarball commands are in `tools/bridge-integration/README.md` (task 033).
+Requirements: Node 24 and pnpm 11. The tested native carriers are DeepSeek Harness 0.2.1-rc.3 and 0.2.1-rc.5 on macOS. Candidate-runtime and exact-tarball commands are in `tools/bridge-integration/README.md` (task 033).
 
 ```sh
 pnpm -C protocol install --frozen-lockfile
@@ -51,7 +50,7 @@ file needs editing:
     quiet: true
 ```
 
-Default `port` is 47390. `bindMode` is `all-private` (or `lan` / `tailscale`), and
+With no explicit `port`, the first choice is 47390. On contention the bridge binds an OS-assigned port and remembers it in `$DSH_HOME/dshm/listener-port`. An explicit positive `port` stays fixed. `bindMode` is `all-private` (or `lan` / `tailscale`), and
 addresses are discovered from private interfaces and refreshed periodically.
 An explicit nonempty `addresses` list accepts private IP literals; loopback is
 allowed for isolated tests. Wildcard, DNS-name and public binds are rejected.
@@ -204,7 +203,7 @@ old records. `multicast-dns` uses UDP directly and does not require Apple Bonjou
 on Windows. macOS guidance appears on the card, including the terminal permission
 when running `dsh web`. Windows guidance asks for Private-network firewall access
 and keeps Public networks disabled. No code changes OS permissions or firewall
-rules. First certificate creation requires `openssl` on PATH on every platform.
+rules. First certificate creation uses the embedded runtime’s Web Crypto implementation.
 
 Build and pack from `bridge/` (never publish as part of this task):
 

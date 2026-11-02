@@ -55,7 +55,7 @@ export interface BridgeServerOptions {
   onRevoked?(deviceId: string): void
   onAddresses?(addresses: string[], port: number): Promise<void> | void
   stateDir: string
-  port: number
+  port?: number
   addresses?: string[]
   bindMode?: 'lan' | 'tailscale' | 'all-private'
   pairing?: boolean

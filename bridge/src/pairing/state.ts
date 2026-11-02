@@ -1,7 +1,6 @@
 import crypto from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
 
 export interface DeviceRecord {
   name: string
@@ -25,24 +24,25 @@ export class HostState {
   readonly fingerprint: string
   readonly devicesFile: string
   devices: Record<string, DeviceRecord>
-  constructor(readonly directory: string) {
+  static async open(directory: string): Promise<HostState> {
     fs.mkdirSync(directory, { recursive: true, mode: 0o700 }); fs.chmodSync(directory, 0o700)
     const keyFile = path.join(directory, 'key.pem'), certFile = path.join(directory, 'cert.pem')
     if (fs.existsSync(certFile) !== fs.existsSync(keyFile)) throw new Error('Incomplete DSHM TLS identity; restore both certificate and key')
     if (!fs.existsSync(certFile)) {
-      const temporaryKey = path.join(directory, 'new-key.pem'), temporaryCert = path.join(directory, 'new-cert.pem')
+      const { createCertificate } = await import('./certificate.js')
+      const { key, cert } = await createCertificate()
+      // Another startup may have completed generation during the signing await.
+      // Exclusive creation ensures a competing process cannot replace its pin.
       try {
-        // Node emits named-curve PKCS8. LibreSSL's `req -newkey ec` can encode
-        // explicit parameters that Electron's BoringSSL cannot load.
-        const keys = crypto.generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
-        writePrivate(temporaryKey, keys.privateKey.export({ type: 'pkcs8', format: 'pem' }))
-        execFileSync('openssl', ['req', '-new', '-x509', '-sha256', '-key', temporaryKey, '-out', temporaryCert, '-days', '825', '-subj', '/CN=DSHM Bridge'], { stdio: 'ignore' })
-        fs.chmodSync(temporaryKey, 0o600); fs.chmodSync(temporaryCert, 0o600)
-        fs.renameSync(temporaryKey, keyFile); fs.renameSync(temporaryCert, certFile)
-      } finally {
-        fs.rmSync(temporaryKey, { force: true }); fs.rmSync(temporaryCert, { force: true })
+        fs.writeFileSync(keyFile, key, { flag: 'wx', mode: 0o600 })
+        fs.writeFileSync(certFile, cert, { flag: 'wx', mode: 0o600 })
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || !fs.existsSync(certFile)) throw error
       }
     }
+    return new HostState(directory, keyFile, certFile)
+  }
+  private constructor(readonly directory: string, keyFile: string, certFile: string) {
     fs.chmodSync(keyFile, 0o600); fs.chmodSync(certFile, 0o600)
     this.key = fs.readFileSync(keyFile); this.cert = fs.readFileSync(certFile)
     this.fingerprint = crypto.createHash('sha256').update(new crypto.X509Certificate(this.cert).raw).digest('base64url')
