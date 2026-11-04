@@ -35,8 +35,9 @@ release scope; mainland network reachability is not claimed.
    dsh-plugin-dshm
    ```
 
-3. Let DSH's plugin manager install the bundle and dependencies. Restart DSH
-   when requested, then open **Settings → DSHM**.
+3. After installation, enable DSHM on the Plugins page and open **Settings → DSHM**.
+   If a previous 0.1.3 enable attempt already left the bridge running in this app session,
+   quit and reopen DSH once after upgrading. Your paired devices keep their access.
 
 Use DSH's plugin manager rather than editing its profile files or copying files
 into the installed application. The plugin is installed into the selected DSH

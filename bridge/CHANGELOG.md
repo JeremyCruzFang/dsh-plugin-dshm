@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Disabling or reloading the plugin in a running DSH now releases its listener, local controls and pairing window. You can enable it again in the same app session and reconnect paired devices.
+
 ## 0.1.3
 
 - Update the WebSocket server to ws 8.22.1 to address the memory disclosure and fragmented-message denial-of-service advisories in 8.18.3.

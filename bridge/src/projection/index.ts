@@ -1,2 +1,2 @@
-export { createProjectionHost, inject, onDispose } from './native.js'
+export { createProjectionHost, inject } from './native.js'
 export { installHostRoutes, installCli, cliInject } from './host.js'

@@ -9,7 +9,7 @@ import { DmpError } from './errors.js'
 import { parseConfig } from './config.js'
 import { createMethods, CreationLedger, capabilities } from './methods/index.js'
 import { startServer } from './server/index.js'
-import { createProjectionHost, onDispose } from './projection/index.js'
+import { createProjectionHost } from './projection/index.js'
 import { PushController } from './push/controller.js'
 export { inject } from './projection/index.js'
 
@@ -20,7 +20,7 @@ const running = new Map<string, Awaited<ReturnType<typeof startServer>> & { diag
 /** Trusted in-process host controls; never exposed as an unauthenticated route. */
 export function getRunningBridge(stateDir: string) { return running.get(stateDir) }
 
-export async function apply(context: unknown, input?: unknown): Promise<void> {
+export async function apply(context: unknown, input?: unknown): Promise<() => Promise<void>> {
   const config = parseConfig(input)
   // Another active profile owns the pairing window and saved port in this home.
   assertLocalControlAvailable(config.stateDir)
@@ -76,12 +76,13 @@ export async function apply(context: unknown, input?: unknown): Promise<void> {
   } catch (error) { await push?.close(); await local?.close(); await discovery?.close(); if (server!) await server.close(); await projection.dispose(); throw error }
   running.set(config.stateDir, { ...server, get port() { return server.port }, get addresses() { return server.addresses },
     get pairingUrl() { return server.pairingUrl }, diagnostics: () => ({ ...projection.diagnostics?.(), ...(config.pushProxyUrl ? { push: { ...push?.counters, setupFailures: pushSetupFailures } } : {}) }) })
-  onDispose(context, async () => {
+  // Cordis awaits the disposer returned by apply during a live disable or reload.
+  return async () => {
     running.delete(config.stateDir)
     await push?.close()
     await local?.close()
     await discovery?.close()
     await server.close()
     await projection.dispose()
-  })
+  }
 }

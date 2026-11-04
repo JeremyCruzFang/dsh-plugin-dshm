@@ -21,7 +21,6 @@ interface Context {
     invoke(options: { namespace: string; method: string; args: DmpObject; peer: NativePeer; signal: AbortSignal }): Promise<unknown>
     wireStream: { open(endpoint: string, payload: { args: DmpObject }, uplink: AsyncIterable<never>, peer: NativePeer, signal: AbortSignal): Promise<AsyncIterable<unknown>> }
   }
-  on(event: 'dispose', handler: () => void | Promise<void>): void
 }
 const object = (value: unknown): DmpObject => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as DmpObject : {}
 const array = (value: unknown): unknown[] => Array.isArray(value) ? value : []
@@ -77,7 +76,6 @@ interface Delivery { id: string; nativeId: string; sessionId: string; value: Dmp
 interface Attachment { deviceId: string; sessionId: string; content: DmpObject; size: number; expires: number; sendId?: string }
 interface Diagnostics { createdPeers: number; disposedPeers: number; activePeers: number }
 export const inject = ['connection', 'typertGateway', 'sessionController', 'permissionPresets']
-export function onDispose(context: unknown, handler: () => void | Promise<void>): void { (context as Context).on('dispose', handler) }
 
 export function createProjectionHost(context: unknown): ProjectionHost & { diagnostics(): Diagnostics } {
   const ctx = context as Context

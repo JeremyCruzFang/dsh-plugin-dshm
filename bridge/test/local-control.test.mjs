@@ -11,6 +11,7 @@ test('local control requires its private token, validates commands, and removes 
   let pairCount = 0, revoked
   const host = await startLocalControl(directory, { status: () => ({ connectedDevices: 1 }), devices: () => [{ deviceId: 'device' }], pair: async () => { pairCount++; return { url: 'synthetic', svg: '<svg/>', expiresAt: 'future' } }, cancelPair() {}, revoke(id) { revoked = id; return true } })
   t.after(() => host.close())
+  await assert.rejects(startLocalControl(directory, {}), /already owns this home/)
   const { socket } = JSON.parse(readFileSync(join(directory, 'control.json'), 'utf8'))
   assert.equal(statSync(join(directory, 'control.json')).mode & 0o777, 0o600)
   if (process.platform !== 'win32') assert.equal(statSync(socket).mode & 0o777, 0o600)
