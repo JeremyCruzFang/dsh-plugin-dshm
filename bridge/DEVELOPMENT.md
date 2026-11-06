@@ -8,7 +8,7 @@ Only capabilities verified against the supported native carrier are advertised.
 
 ## Build and checks
 
-Requirements: Node 24 and pnpm 11. The tested native carriers are DeepSeek Harness 0.2.1-rc.3 and 0.2.1-rc.5 on macOS. Candidate-runtime and exact-tarball commands are in `tools/bridge-integration/README.md` (task 033).
+Requirements: Node 24 and pnpm 11. The supported native carriers are DeepSeek Harness 0.2.1-rc.3, 0.2.1-rc.5 and 0.2.2-rc.1. Candidate-runtime, exact-tarball and live-upgrade checks are documented in `tools/bridge-integration/README.md` (tasks 033–037). The full client suite runs on macOS; Windows runs the installation/lifecycle harnesses.
 
 ```sh
 pnpm -C protocol install --frozen-lockfile

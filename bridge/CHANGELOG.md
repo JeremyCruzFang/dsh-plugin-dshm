@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.5
+
+- Add exact support for DSH 0.2.2-rc.1, retaining 0.2.1-rc.3 and 0.2.1-rc.5.
+- An old bridge still running in the same DSH process now explains how to fully
+  quit and reopen the app. A second DSH process gets a separate ownership message.
+  The single-owner safeguard and existing device identities are preserved.
+- Clarify the one-time full quit needed when upgrading a surviving 0.1.3 process;
+  closing its window alone does not load the new plugin. The 0.1.4 live teardown
+  fix remains in place.
+
 ## 0.1.4
 
 - Disabling or reloading the plugin in a running DSH now releases its listener, local controls and pairing window. You can enable it again in the same app session and reconnect paired devices.

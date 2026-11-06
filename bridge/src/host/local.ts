@@ -21,7 +21,9 @@ export function assertLocalControlAvailable(directory: string): void {
     const old = record(directory)
     let live = true
     try { process.kill(old.pid, 0) } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ESRCH') live = false }
-    if (live) throw new Error('A bridge already owns this home; use its existing host controls')
+    if (live) throw new Error(old.pid === process.pid
+      ? 'DSHM is already running in this DSH session. Use Quit DeepSeek Harness in the app or tray menu, then reopen it to load the installed plugin.'
+      : 'Another DSH process is running DSHM for this home. Quit that DSH process before enabling this one.')
   }
 }
 export async function startLocalControl(directory: string, controls: HostControls): Promise<{ close(): Promise<void> }> {

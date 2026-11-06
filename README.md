@@ -8,23 +8,23 @@ your paired device over your local network or your own VPN.
 
 ## Requirements and compatibility
 
-- DeepSeek Harness **0.2.1-rc.3 or 0.2.1-rc.5**. Plugin 0.1.1 adds support for
-  **0.2.1-rc.5**, the npm `latest` release verified on 2026-10-30. These are
-  exact tested versions; other releases, including the separate 0.2.2 alpha
-  channel, are not automatically compatible.
+- DeepSeek Harness **0.2.1-rc.3, 0.2.1-rc.5 or 0.2.2-rc.1**. Plugin 0.1.5 adds
+  **0.2.2-rc.1**, the npm `latest` release checked on 2026-11-07. These are
+  exact supported versions; other releases and the separate alpha channel
+  are not automatically compatible.
 - A running DSH desktop app or `dsh web` on your computer, and a compatible DSHM
   iPhone/iPad build. This npm package does not install the iOS app.
 - Node 24 or later in the DSH runtime. The bridge creates its first TLS certificate locally.
 - Both devices on a network that permits direct communication, or on your own
   connected VPN such as Tailscale.
 
-The bridge has been exercised with DSH 0.2.1-rc.3 on macOS, including the desktop
-app and isolated `dsh web`. Plugin 0.1.1 is also tested against real DSH
-0.2.1-rc.5 in isolated `dsh web`, including approvals, reconnects, file transfers,
-path restrictions and restart. The new 0.1.1 / rc.5 combination still needs a
-Windows native check; macOS results do not substitute for Windows verification. Physical-phone network acceptance is also separate from
-the local test-client and Simulator results. Mainland China is outside the v1
-release scope; mainland network reachability is not claimed.
+Release checks use isolated real `dsh web` hosts: macOS covers approvals,
+reconnects, file transfers, path restrictions and restart; Windows covers
+package installation, occupied-port recovery, pairing, restart and live
+disable/re-enable. Windows checks use hosted Windows Server, not every desktop
+configuration. Physical-phone network acceptance is separate from these local
+test-client and Simulator results. Mainland China is outside the v1 release
+scope; mainland network reachability is not claimed.
 
 ## Install in DSH
 
@@ -36,15 +36,19 @@ release scope; mainland network reachability is not claimed.
    ```
 
 3. After installation, enable DSHM on the Plugins page and open **Settings → DSHM**.
-   If a previous 0.1.3 enable attempt already left the bridge running in this app session,
-   quit and reopen DSH once after upgrading. Your paired devices keep their access.
+   When upgrading from 0.1.3 or earlier, use **Quit DeepSeek Harness** from the
+   app menu on macOS or exit DSH from its tray menu on Windows, then reopen it
+   once. Closing only the window can leave the old bridge running, even while
+   Plugins shows the newly installed version. Keep the bridge data: your paired
+   devices retain their access. Subsequent disable/re-enable needs no restart.
 
 Use DSH's plugin manager rather than editing its profile files or copying files
 into the installed application. The plugin is installed into the selected DSH
 profile; installing it into one profile does not enable every other profile.
 
-DSH 0.2.1 installs packages by name from npm; there is no central DSH plugin
-market. No DSHM custom plugin index is published for this release.
+The DSH Market listing installs the package from npm. Catalog updates and npm
+availability can appear at different times. You can also install by package
+name through DSH's plugin manager.
 
 ## Pair your device
 

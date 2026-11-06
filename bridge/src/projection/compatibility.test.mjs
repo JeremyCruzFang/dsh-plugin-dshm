@@ -5,8 +5,8 @@ import { createProjectionHost } from '../../lib/projection/native.js'
 import { supportsDSH, supportedDSHVersions } from './compatibility.mjs'
 
 test('native compatibility accepts tested carriers and rejects other releases', () => {
-  for (const version of ['0.2.1-rc.3', '0.2.1-rc.5']) assert.equal(supportsDSH(version), true)
-  for (const version of ['unknown', '', '0.2.1-rc.2', '0.2.1-rc.4', '0.2.1-rc.6', '0.2.1', '0.2.2-alpha.2', '1.0.0', undefined]) {
+  for (const version of ['0.2.1-rc.3', '0.2.1-rc.5', '0.2.2-rc.1']) assert.equal(supportsDSH(version), true)
+  for (const version of ['unknown', '', '0.2.1-rc.2', '0.2.1-rc.4', '0.2.1-rc.6', '0.2.1', '0.2.2-alpha.2', '0.2.2-rc.2', '1.0.0', undefined]) {
     assert.equal(supportsDSH(version), false, String(version))
   }
   assert.equal(Object.isFrozen(supportedDSHVersions), true)
